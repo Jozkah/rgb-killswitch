@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>RGB Kill Switch</title>
+<script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script></head>
+<body>
+<sdpi-item label="When turned on">
+	<sdpi-select setting="mode" placeholder="Rainbow">
+		<option value="rainbow">Rainbow (motherboard)</option>
+		<option value="static">Static color (motherboard)</option>
+	</sdpi-select>
+</sdpi-item>
+<sdpi-item label="Static color"><sdpi-color setting="color" default="#ffffff"></sdpi-color></sdpi-item>
+<sdpi-item label="iCUE"><span>Resumes your iCUE profile</span></sdpi-item>
+</body></html>

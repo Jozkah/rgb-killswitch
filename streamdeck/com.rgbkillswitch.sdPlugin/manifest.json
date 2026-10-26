@@ -1,0 +1,99 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"SDKVersion": 3,
+	"Name": "RGB Kill Switch",
+	"Version": "1.0.0.0",
+	"Author": "Jozkah",
+	"Description": "Turns off all RGB lighting (motherboard, GPU, Corsair iCUE, Razer) with one key, or after the PC is idle.",
+	"UUID": "com.rgbkillswitch",
+	"Icon": "imgs/plugin",
+	"CategoryIcon": "imgs/plugin",
+	"CodePath": "bin/plugin.js",
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"Actions": [
+		{
+			"UUID": "com.rgbkillswitch.case",
+			"Name": "Toggle case RGB",
+			"Tooltip": "Turn motherboard, GPU, RAM and fan lighting off or on. Peripherals are left alone.",
+			"Icon": "imgs/on",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/on",
+					"Title": "CASE\nON",
+					"TitleAlignment": "bottom",
+					"FontSize": 11
+				},
+				{
+					"Image": "imgs/off",
+					"Title": "CASE\nOFF",
+					"TitleAlignment": "bottom",
+					"FontSize": 11
+				}
+			]
+		},
+		{
+			"UUID": "com.rgbkillswitch.all",
+			"Name": "Toggle case + peripherals RGB",
+			"Tooltip": "Turn case lighting and keyboard, mouse, mousepad and headset lighting off or on.",
+			"Icon": "imgs/on",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/on",
+					"Title": "ALL\nON",
+					"TitleAlignment": "bottom",
+					"FontSize": 11
+				},
+				{
+					"Image": "imgs/off",
+					"Title": "ALL\nOFF",
+					"TitleAlignment": "bottom",
+					"FontSize": 11
+				}
+			]
+		},
+		{
+			"UUID": "com.rgbkillswitch.idle",
+			"Name": "Auto-off when idle",
+			"Tooltip": "Turn all RGB off when the PC is idle and restore it when you come back.",
+			"Icon": "imgs/on",
+			"PropertyInspectorPath": "ui/idle.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/on",
+					"Title": "IDLE\nAUTO",
+					"TitleAlignment": "bottom",
+					"FontSize": 11
+				},
+				{
+					"Image": "imgs/off",
+					"Title": "IDLE\nOFF",
+					"TitleAlignment": "bottom",
+					"FontSize": 11
+				}
+			]
+		}
+	]
+}

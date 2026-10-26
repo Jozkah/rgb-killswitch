@@ -1,0 +1,8 @@
+node_modules/
+dist/
+vendor/
+streamdeck/*/bin/
+streamdeck/*/lib/
+streamdeck/*/node_modules/
+streamdeck/*/logs/
+*.log

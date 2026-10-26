@@ -1,0 +1,35 @@
+{
+	"name": "rgb-killswitch",
+	"version": "0.1.0",
+	"description": "One command (or Stream Deck key) that turns off all the RGB lighting in your PC: motherboard, GPU, Corsair iCUE and Razer devices. No setup, no vendor apps running.",
+	"license": "GPL-2.0-or-later",
+	"private": true,
+	"type": "module",
+	"bin": {
+		"rgb": "dist/cli.cjs"
+	},
+	"scripts": {
+		"build": "node scripts/build.mjs",
+		"prepare": "node scripts/build.mjs",
+		"typecheck": "tsc --noEmit",
+		"postinstall": "node scripts/fetch-icue-sdk.mjs",
+		"streamdeck:install": "node scripts/install-streamdeck.mjs"
+	},
+	"dependencies": {
+		"koffi": "^2.9.0",
+		"node-hid": "^3.1.0"
+	},
+	"devDependencies": {
+		"@elgato/streamdeck": "^3.0.3",
+		"@types/node": "^24.0.0",
+		"esbuild": "^0.25.0",
+		"typescript": "^5.8.0"
+	},
+	"engines": {
+		"node": ">=20.5.1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Jozkah/rgb-killswitch.git"
+	}
+}
