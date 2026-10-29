@@ -49,14 +49,18 @@ async function holder(): Promise<void> {
 	for (;;) {
 		beat();
 		const state = readState();
-		for (const group of GROUPS) {
-			if (state.off[group] === applied[group]) continue;
-			note(`${group}: ${state.off[group] ? "blackout" : "release"}`);
-			if (state.off[group]) icue.blackout(group);
-			else await icue.release(group);
-			applied[group] = state.off[group];
-			note(`${group}: done`);
+		const changed = GROUPS.filter((g) => state.off[g] !== applied[g]);
+		const release = changed.filter((g) => !state.off[g]);
+		for (const group of changed.filter((g) => state.off[g])) {
+			note(`${group}: blackout`);
+			icue.blackout(group);
 		}
+		if (release.length) {
+			note(`${release.join(", ")}: release`);
+			await icue.release(...release);
+		}
+		for (const group of changed) applied[group] = state.off[group];
+		if (changed.length) note(`applied ${changed.join(", ")}`);
 		if (state.holderPid === process.pid && state.ack !== state.seq) {
 			writeState({ ...readState(), ack: state.seq });
 			note(`ack ${state.seq}`);
@@ -100,6 +104,8 @@ async function main(): Promise<void> {
 	try {
 		if (command === "status") {
 			const found = Object.entries(runner.detected).filter(([, v]) => v).map(([k]) => k);
+			const razerNames = [...new Set(runner.razer.zones.map((z) => z.name))];
+			if (razerNames.length) found.push(`(razer: ${razerNames.join(", ")})`);
 			if (findIcueDll([VENDOR])) found.push("icue (if iCUE is running)");
 			console.log(`found:   ${found.join(", ") || "nothing supported"}`);
 			console.log(`case:    ${state.off.case ? "off" : "on"}`);

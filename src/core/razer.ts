@@ -166,19 +166,28 @@ function run(zones: RazerZone[], log: Log, fn: (devices: Open[], rounds: number)
 	}
 }
 
-/** `saved` receives each zone's brightness so razerOn can restore it, even from another process. */
+const SETTLE_MS = 60;
+
+/**
+ * `saved` receives each zone's brightness so razerOn can restore it, even from another process.
+ * Keyboards fade their brightness, so a reading is only trusted when two reads a moment apart agree; otherwise
+ * a mid-fade value (say 4) would be saved as the user's level and restored as a dim keyboard.
+ */
 export function razerOff(zones: RazerZone[], saved: Record<string, number>, log: Log): void {
 	run(zones, log, (devices, rounds) => {
-		for (let i = 0; i < rounds; i++) {
-			roundTrip(
-				devices,
-				i,
-				(z) => report(z, z.get, z.led, 0),
-				(z, r) => {
-					if (r[1] === STATUS_SUCCESS && r[11] > 0) saved[zoneKey(z)] = r[11]; // keep the last non-zero level if called twice
-				},
-			);
-		}
+		const readAll = (): Map<string, number> => {
+			const levels = new Map<string, number>();
+			for (let i = 0; i < rounds; i++) {
+				roundTrip(devices, i, (z) => report(z, z.get, z.led, 0), (z, r) => {
+					if (r[1] === STATUS_SUCCESS) levels.set(zoneKey(z), r[11]);
+				});
+			}
+			return levels;
+		};
+		const first = readAll();
+		pause(SETTLE_MS);
+		const second = readAll();
+		for (const [key, level] of second) if (level > 0 && first.get(key) === level) saved[key] = level;
 		for (let i = 0; i < rounds; i++) roundTrip(devices, i, (z) => report(z, z.set, z.led, 0));
 	});
 }
@@ -187,4 +196,17 @@ export function razerOn(zones: RazerZone[], saved: Record<string, number>, log: 
 	run(zones, log, (devices, rounds) => {
 		for (let i = 0; i < rounds; i++) roundTrip(devices, i, (z) => report(z, z.set, z.led, saved[zoneKey(z)] ?? FALLBACK_BRIGHTNESS));
 	});
+}
+
+/** Reads each zone's current brightness without changing anything. */
+export function razerLevels(zones: RazerZone[], log: Log): Record<string, number> {
+	const levels: Record<string, number> = {};
+	run(zones, log, (devices, rounds) => {
+		for (let i = 0; i < rounds; i++) {
+			roundTrip(devices, i, (z) => report(z, z.get, z.led, 0), (z, r) => {
+				if (r[1] === STATUS_SUCCESS) levels[zoneKey(z)] = r[11];
+			});
+		}
+	});
+	return levels;
 }

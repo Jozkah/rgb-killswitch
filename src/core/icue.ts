@@ -7,6 +7,7 @@ const CSS_CONNECTED = 6;
 const CDT_ALL = -1;
 const MAX_DEVICES = 64;
 const MAX_LEDS = 512;
+const DISCONNECT_TIMEOUT_MS = 3000;
 
 const Version = koffi.struct("CorsairVersion", { major: "int", minor: "int", patch: "int" });
 const Details = koffi.struct("CorsairSessionDetails", { client: Version, server: Version, host: Version });
@@ -38,6 +39,7 @@ export class Icue {
 	private readonly setColors;
 	private readonly callback: unknown;
 	private readonly blackedOut = new Set<Group>();
+	private releasing: Promise<void> = Promise.resolve();
 	private devices: BlackDevice[] = [];
 
 	/** Connects right away and stays connected, so the blackout can paint instantly instead of waiting for the handshake. */
@@ -66,15 +68,33 @@ export class Icue {
 	 * Dropping the session hands lighting back to iCUE's own profile (the SDK has no per-device undo), so it releases every
 	 * group; any group that should stay black is repainted as soon as the session is back, a few milliseconds later.
 	 */
-	release(group: Group): Promise<void> {
-		this.blackedOut.delete(group);
+	release(...groups: Group[]): Promise<void> {
+		for (const g of groups) this.blackedOut.delete(g);
+		// One disconnect at a time: a second one issued while the first is in flight never completes.
+		this.releasing = this.releasing.then(() => this.reconnect());
+		return this.releasing;
+	}
+
+	private reconnect(): Promise<void> {
 		return new Promise((resolve) => {
-			// Synchronous disconnect deadlocks: the SDK fires a state callback that needs this thread.
-			this.disconnect.async((err: unknown) => {
-				if (err) this.log(`CorsairDisconnect error ${String(err)}`);
+			let settled = false;
+			const finish = (): void => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
 				this.devices = [];
 				this.open();
 				resolve();
+			};
+			// A key press must never hang on the SDK, so give up waiting and reconnect anyway.
+			const timer = setTimeout(() => {
+				this.log("CorsairDisconnect timed out");
+				finish();
+			}, DISCONNECT_TIMEOUT_MS);
+			// Synchronous disconnect deadlocks: the SDK fires a state callback that needs this thread.
+			this.disconnect.async((err: unknown) => {
+				if (err) this.log(`CorsairDisconnect error ${String(err)}`);
+				finish();
 			});
 		});
 	}
@@ -107,7 +127,14 @@ export class Icue {
 	}
 
 	private paintBlack(): void {
-		for (const { id, group, colors } of this.devices) if (this.blackedOut.has(group)) this.setColors(id, colors.length, colors);
+		const targets = this.devices.filter((d) => this.blackedOut.has(d.group));
+		if (!targets.length) {
+			if (this.blackedOut.size) this.log("iCUE: no devices to paint yet; waiting for the session");
+			return;
+		}
+		const failed: string[] = [];
+		for (const { id, colors } of targets) if (this.setColors(id, colors.length, colors) !== 0) failed.push(id);
+		this.log(`iCUE: painted ${targets.length - failed.length}/${targets.length} devices black${failed.length ? ` (failed: ${failed.join(", ")})` : ""}`);
 	}
 }
 

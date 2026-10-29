@@ -46,7 +46,7 @@ async function setGroups(groups: Group[], off: boolean): Promise<void> {
 			for (const g of groups) icue?.blackout(g);
 			await setGlobals({ razerSaved: await done });
 		} else {
-			await Promise.all([r.on(groups, onEffect(auraSettings ?? {}), razerSaved ?? {}), ...groups.map((g) => icue?.release(g))]);
+			await Promise.all([r.on(groups, onEffect(auraSettings ?? {}), razerSaved ?? {}), icue?.release(...groups)]);
 		}
 	} catch (e) {
 		logger.error(`toggle failed: ${String(e)}`);
