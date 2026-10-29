@@ -1,3 +1,4 @@
+import { Worker } from "node:worker_threads";
 import HID from "node-hid";
 import type { Log } from "./types.js";
 
@@ -15,7 +16,7 @@ export function commanderCorePresent(): boolean {
 }
 
 /** Holds the Commander CORE's lighting black. It falls back to its own effect if not refreshed, so it re-sends every second. */
-export class CommanderCore {
+export class CoreDriver {
 	private dev: HID.HID | undefined;
 	private timer: NodeJS.Timeout | undefined;
 
@@ -87,5 +88,28 @@ export class CommanderCore {
 			}
 		}
 		this.command(0x05, 0x01, []);
+	}
+}
+
+/**
+ * Runs the driver in its own thread: its USB setup takes a third of a second of blocking writes, which would otherwise
+ * stall the caller and delay everything else switching at the same moment.
+ */
+export class CommanderCore {
+	private readonly worker: Worker | undefined;
+
+	constructor(workerPath: string, log: Log) {
+		if (!commanderCorePresent()) return;
+		this.worker = new Worker(workerPath, { workerData: { backend: "core" } });
+		this.worker.on("error", (e) => log(`Commander CORE worker crashed: ${String(e)}`));
+		this.worker.on("message", (reply: { logs?: string[] }) => reply.logs?.forEach((m) => log(m)));
+	}
+
+	start(): void {
+		this.worker?.postMessage({ id: 0, action: "off" });
+	}
+
+	stop(): void {
+		this.worker?.postMessage({ id: 0, action: "on" });
 	}
 }

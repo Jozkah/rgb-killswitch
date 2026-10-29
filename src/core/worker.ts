@@ -1,5 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { auraDetect, auraOff, auraOn, type AuraOn } from "./aura.js";
+import { CoreDriver } from "./commandercore.js";
 import { gpuDetect, gpuOff, gpuOn } from "./gpu.js";
 import { razerDiscover, razerOff, razerOn, type RazerZone } from "./razer.js";
 import type { Log } from "./types.js";
@@ -10,8 +11,9 @@ export type Request = Command & { id: number };
 export type Reply = { id: number; error?: string; logs: string[]; detected?: boolean; razer?: { zones: RazerZone[]; saved: Record<string, number> } };
 
 // Each backend runs in its own thread: device I/O is blocking, so threads are what lets every family switch at the same moment.
-const backend = workerData.backend as Backend;
+const backend = workerData.backend as Backend | "core";
 let razerZones: RazerZone[] = [];
+const core = backend === "core" ? new CoreDriver(() => {}) : undefined;
 
 function handle(req: Request, log: Log): Omit<Reply, "id" | "logs"> {
 	if (backend === "aura") {

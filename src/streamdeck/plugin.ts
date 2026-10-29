@@ -21,7 +21,7 @@ const log = (m: string): void => {
 
 // Stream Deck runs the plugin from its own folder (bin/plugin.js); the DLL sits in lib/.
 const dll = findIcueDll([path.join(__dirname, "..", "lib")]);
-const icue = dll ? new Icue(dll, log) : undefined;
+const icue = dll ? new Icue(dll, path.join(__dirname, "worker.js"), log) : undefined;
 if (!dll) log("iCUE SDK not found; Corsair devices will be skipped");
 
 /** Detects the hardware once, in the background, and keeps one worker thread per device family warm. */

@@ -45,8 +45,8 @@ export class Icue {
 	private readonly core: CommanderCore;
 
 	/** Connects right away and stays connected, so the blackout can paint instantly instead of waiting for the handshake. */
-	constructor(dllPath: string, private readonly log: Log) {
-		this.core = new CommanderCore(log);
+	constructor(dllPath: string, workerPath: string, private readonly log: Log) {
+		this.core = new CommanderCore(workerPath, log);
 		this.lib = koffi.load(dllPath);
 		this.connect = this.lib.func("int CorsairConnect(CorsairSessionStateChangedHandler *cb, void *ctx)");
 		this.disconnect = this.lib.func("int CorsairDisconnect()");
@@ -65,8 +65,7 @@ export class Icue {
 	blackout(group: Group): void {
 		this.blackedOut.add(group);
 		this.paintBlack();
-		// After the SDK paint, so the slower USB setup never delays it.
-		if (group === "case") setImmediate(() => this.core.start());
+		if (group === "case") this.core.start();
 	}
 
 	/**

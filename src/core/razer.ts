@@ -9,6 +9,7 @@ const STATUS_SUCCESS = 0x02;
 const STORAGE_PERSIST = 0x01; // some keyboards ignore brightness writes that are not stored
 const FALLBACK_BRIGHTNESS = 0xff;
 const COMMAND_PAUSE_MS = 20;
+const WRITE_PAUSE_MS = 5;
 
 // Interfaces that carry the vendor control channel on the devices OpenRGB documents.
 const CONTROL_INTERFACES = [
@@ -150,7 +151,8 @@ function openZones(zones: RazerZone[], log: Log): Open[] {
 function roundTrip(devices: Open[], round: number, command: (z: RazerZone) => number[], read?: (z: RazerZone, response: number[]) => void): void {
 	const active = devices.filter((o) => o.zones[round]);
 	for (const o of active) o.dev.sendFeatureReport(command(o.zones[round]));
-	pause(COMMAND_PAUSE_MS);
+	// Writes need no answer, so they only wait long enough for the next round not to collide.
+	pause(read ? COMMAND_PAUSE_MS : WRITE_PAUSE_MS);
 	if (read) for (const o of active) read(o.zones[round], o.dev.getFeatureReport(0, REPORT_SIZE));
 }
 

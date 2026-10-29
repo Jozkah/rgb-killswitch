@@ -43,7 +43,7 @@ async function holder(): Promise<void> {
 		if (debugFile) fs.appendFileSync(debugFile, `${new Date().toISOString()} ${m}
 `);
 	};
-	const icue = new Icue(dll, note);
+	const icue = new Icue(dll, WORKER, note);
 	note(`holder started, pid ${process.pid}`);
 	const applied: Record<Group, boolean> = { case: false, peripherals: false };
 	for (;;) {
