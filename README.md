@@ -27,7 +27,8 @@ rgb off case     # only the inside of the PC, leave keyboard and mouse lit
 | Hardware | Result |
 | --- | --- |
 | ASUS ROG STRIX B650E-F GAMING WIFI | works |
-| Corsair Vengeance RGB DDR5, Commander PRO, Commander CORE | works |
+| Corsair Vengeance RGB DDR5, Commander CORE (pump and fans) | works |
+| Corsair Commander PRO | not supported: iCUE's SDK reports no lights on it |
 | Razer BlackWidow Elite, Naga V3 Pro, Firefly V2 Pro | works |
 | MSI GeForce RTX 5080 SUPRIM | works (this one carries another vendor's BIOS, so it needs the [override](#unusual-hardware)) |
 
@@ -47,7 +48,7 @@ You need [Node.js](https://nodejs.org) 20 or newer.
 git clone https://github.com/Jozkah/rgb-killswitch
 cd rgb-killswitch
 npm install
-rgb toggle
+.gb.cmd toggle
 ```
 
 `npm install` also downloads Corsair's iCUE SDK from Corsair's official release page (it is not bundled here). If you use Corsair gear, turn on **Settings, Enable SDK** in iCUE.
@@ -61,14 +62,15 @@ Handy shortcuts:
 
 Some of this hardware cannot report what it was showing, so "on" cannot always restore your exact effect:
 
-- **iCUE** devices go back to your iCUE profile exactly.
-- **Razer** devices go back to their exact previous brightness (and keep whatever effect they had).
+- **iCUE** devices (RAM and so on) go back to your iCUE profile exactly.
+- **Commander CORE** (pump and fans) is switched over USB because iCUE's SDK cannot reach its lights. It returns to the hub's own built-in lighting, not necessarily your iCUE profile.
+- **Razer** devices go back to their previous brightness (and keep whatever effect they had). A brightness below 10% is treated as a glitch and restored to full.
 - **Motherboard** lighting comes back as a rainbow, or a fixed color: `rgb on --color ff5500`.
 - **MSI graphics cards** come back as Rainbow Wave.
 
 ### The background process
 
-iCUE only keeps lighting changes while a program stays connected. So `rgb off` leaves a tiny background process running that holds the Corsair session; `rgb on` stops it. If iCUE restarts while your lights are off, it re-applies the blackout. The Commander CORE (pump and fan lighting) is not reachable through iCUE, so it is held black directly over USB, refreshed every second.
+iCUE only keeps lighting changes while a program stays connected. So `rgb off` leaves a tiny background process running that holds the Corsair session; `rgb on` stops it. If iCUE restarts while your lights are off, it re-applies the blackout.
 
 ## Stream Deck plugin
 

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { findIcueDll, GROUPS, Icue, Runner, type AuraOn, type Group } from "../core/index.js";
 import { stateDir } from "../core/paths.js";
-import { beat, holderAlive, readState, writeState, type State } from "./state.js";
+import { beat, clearBeat, holderAlive, readState, tryReadState, writeState, type State } from "./state.js";
 
 const HELP = `rgb: turn the RGB lighting in your PC off and on. No setup needed.
 
@@ -21,6 +21,7 @@ const HELP = `rgb: turn the RGB lighting in your PC off and on. No setup needed.
 const WORKER = path.join(__dirname, "worker.cjs");
 const VENDOR = path.join(__dirname, "..", "vendor");
 const HOLDER_POLL_MS = 250;
+const HEARTBEAT_MS = 500;
 const ACK_TIMEOUT_MS = 4_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -46,9 +47,13 @@ async function holder(): Promise<void> {
 	const icue = new Icue(dll, WORKER, note);
 	note(`holder started, pid ${process.pid}`);
 	const applied: Record<Group, boolean> = { case: false, peripherals: false };
+	// On a timer, not in the loop: releasing iCUE can block the loop for seconds and the CLI would think the holder died.
+	beat();
+	setInterval(beat, HEARTBEAT_MS);
+	let state = readState();
 	for (;;) {
-		beat();
-		const state = readState();
+		// A read that fails for a moment must not look like "everything is on"; keep acting on the last good state.
+		state = tryReadState() ?? state;
 		const changed = GROUPS.filter((g) => state.off[g] !== applied[g]);
 		const release = changed.filter((g) => !state.off[g]);
 		for (const group of changed.filter((g) => state.off[g])) {
@@ -65,7 +70,10 @@ async function holder(): Promise<void> {
 			writeState({ ...readState(), ack: state.seq });
 			note(`ack ${state.seq}`);
 		}
-		if (!state.off.case && !state.off.peripherals && !applied.case && !applied.peripherals) process.exit(0);
+		if (!state.off.case && !state.off.peripherals && !applied.case && !applied.peripherals) {
+			clearBeat();
+			process.exit(0);
+		}
 		await sleep(HOLDER_POLL_MS);
 	}
 }
@@ -100,7 +108,8 @@ async function main(): Promise<void> {
 	if (!["case", "all"].includes(scope)) throw new Error(`Unknown scope "${scope}". Use case or all.`);
 
 	const state = readState();
-	const runner = await Runner.create(WORKER, log, state.razerZones);
+	// `status` probes again, so a newly plugged-in Razer device shows up there and in the cache.
+	const runner = await Runner.create(WORKER, log, command === "status" ? undefined : state.razerZones);
 	try {
 		if (command === "status") {
 			const found = Object.entries(runner.detected).filter(([, v]) => v).map(([k]) => k);
@@ -110,6 +119,8 @@ async function main(): Promise<void> {
 			console.log(`found:   ${found.join(", ") || "nothing supported"}`);
 			console.log(`case:    ${state.off.case ? "off" : "on"}`);
 			console.log(`devices: ${state.off.peripherals ? "off" : "on"}`);
+			state.razerZones = runner.razer.zones;
+			writeState(state);
 			return;
 		}
 

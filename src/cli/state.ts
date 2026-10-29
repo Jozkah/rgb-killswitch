@@ -20,12 +20,19 @@ const FILE = path.join(stateDir(), "state.json");
 
 const EMPTY: State = { off: { case: false, peripherals: false }, razerSaved: {}, seq: 0, ack: 0 };
 
-export function readState(): State {
+const fresh = (): State => ({ ...EMPTY, off: { ...EMPTY.off }, razerSaved: {} });
+
+/** Undefined when the file cannot be read right now (missing, or briefly locked by a virus scanner). */
+export function tryReadState(): State | undefined {
 	try {
-		return { ...EMPTY, ...(JSON.parse(fs.readFileSync(FILE, "utf8")) as Partial<State>) };
+		return { ...fresh(), ...(JSON.parse(fs.readFileSync(FILE, "utf8")) as Partial<State>) };
 	} catch {
-		return { ...EMPTY, off: { ...EMPTY.off }, razerSaved: {} };
+		return undefined;
 	}
+}
+
+export function readState(): State {
+	return tryReadState() ?? fresh();
 }
 
 export function writeState(state: State): void {
@@ -38,15 +45,21 @@ export function writeState(state: State): void {
 const BEAT_FILE = path.join(stateDir(), "holder.beat");
 const BEAT_MAX_AGE_MS = 2_000;
 
-/** The holder touches this file every poll; a process id alone can be reused by an unrelated process. */
+/** The holder rewrites this file on a timer; a process id alone can be reused by an unrelated process. */
 export function beat(): void {
 	fs.mkdirSync(path.dirname(BEAT_FILE), { recursive: true });
 	fs.writeFileSync(BEAT_FILE, String(process.pid));
 }
 
+export function clearBeat(): void {
+	fs.rmSync(BEAT_FILE, { force: true });
+}
+
 export function holderAlive(): boolean {
 	try {
-		return Date.now() - fs.statSync(BEAT_FILE).mtimeMs < BEAT_MAX_AGE_MS;
+		if (Date.now() - fs.statSync(BEAT_FILE).mtimeMs >= BEAT_MAX_AGE_MS) return false;
+		process.kill(Number(fs.readFileSync(BEAT_FILE, "utf8")), 0); // throws when that process is gone
+		return true;
 	} catch {
 		return false;
 	}

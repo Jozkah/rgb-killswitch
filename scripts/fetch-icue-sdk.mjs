@@ -15,13 +15,14 @@ const target = path.join(root, "vendor", "iCUESDK.x64_2019.dll");
 
 if (process.platform !== "win32" || process.arch !== "x64" || existsSync(target)) process.exit(0);
 
+const quote = (p) => p.replaceAll("'", "''"); // a user name like O'Brien would end the PowerShell string
 const work = mkdtempSync(path.join(os.tmpdir(), "icue-sdk-"));
 try {
 	const zip = Buffer.from(await (await fetch(URL)).arrayBuffer());
 	if (createHash("sha256").update(zip).digest("hex") !== SHA256) throw new Error("checksum mismatch");
 	const zipPath = path.join(work, "sdk.zip");
 	writeFileSync(zipPath, zip);
-	execFileSync("powershell.exe", ["-NoProfile", "-Command", `Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${work}' -Force`], { stdio: "ignore" });
+	execFileSync("powershell.exe", ["-NoProfile", "-Command", `Expand-Archive -LiteralPath '${quote(zipPath)}' -DestinationPath '${quote(work)}' -Force`], { stdio: "ignore" });
 	mkdirSync(path.dirname(target), { recursive: true });
 	copyFileSync(path.join(work, "iCUESDK", "redist", "x64", "iCUESDK.x64_2019.dll"), target);
 	console.log("Downloaded the Corsair iCUE SDK.");

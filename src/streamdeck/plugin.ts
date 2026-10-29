@@ -12,6 +12,8 @@ type Globals = {
 	auraSettings?: Settings;
 	/** Razer brightness levels to restore. Kept here so they survive a plugin restart. */
 	razerSaved?: Record<string, number>;
+	/** Groups the idle timer switched off, kept so a plugin restart still restores them. */
+	idleHeld?: Group[];
 };
 
 const logger = streamDeck.logger.createScope("rgb-toggle");
@@ -21,12 +23,25 @@ const log = (m: string): void => {
 
 // Stream Deck runs the plugin from its own folder (bin/plugin.js); the DLL sits in lib/.
 const dll = findIcueDll([path.join(__dirname, "..", "lib")]);
-const icue = dll ? new Icue(dll, path.join(__dirname, "worker.js"), log) : undefined;
+let icue: Icue | undefined;
+try {
+	icue = dll ? new Icue(dll, path.join(__dirname, "worker.js"), log) : undefined;
+} catch (e) {
+	logger.error(`iCUE unavailable, Corsair devices will be skipped: ${String(e)}`);
+}
 if (!dll) log("iCUE SDK not found; Corsair devices will be skipped");
 
 /** Detects the hardware once, in the background, and keeps one worker thread per device family warm. */
 const runner = Runner.create(path.join(__dirname, "worker.js"), log);
-void runner.then((r) => log(`found: ${Object.entries(r.detected).filter(([, v]) => v).map(([k]) => k).join(", ") || "nothing"}`));
+runner.then((r) => log(`found: ${Object.entries(r.detected).filter(([, v]) => v).map(([k]) => k).join(", ") || "nothing"}`)).catch((e) => logger.error(`detection failed: ${String(e)}`));
+
+/** Key presses and the idle timer all change the same hardware and settings, so they run one at a time. */
+let queue: Promise<unknown> = Promise.resolve();
+const serialized = <T>(work: () => Promise<T>): Promise<T> => {
+	const result = queue.then(work);
+	queue = result.catch(() => undefined);
+	return result;
+};
 
 function onEffect(s: Settings): AuraOn {
 	if (s.mode !== "static") return { mode: "rainbow" };
@@ -36,6 +51,13 @@ function onEffect(s: Settings): AuraOn {
 
 const getGlobals = (): Promise<Globals> => streamDeck.settings.getGlobalSettings<Globals>();
 const setGlobals = (patch: Globals): Promise<void> => getGlobals().then((g) => streamDeck.settings.setGlobalSettings<Globals>({ ...g, ...patch }));
+
+// A restarted plugin has an empty iCUE session, so Corsair lighting would come back while the keys still say "off".
+void getGlobals().then((g) => {
+	if (g.caseOff) icue?.blackout("case");
+	if (g.peripheralsOff) icue?.blackout("peripherals");
+	idleHeld = g.idleHeld ?? [];
+});
 
 async function setGroups(groups: Group[], off: boolean): Promise<void> {
 	try {
@@ -60,6 +82,7 @@ const RESUME_IDLE_MS = 2_000;
 /** Groups the idle timer switched off, so only those are restored when the user comes back. */
 let idleHeld: Group[] = [];
 let idleBusy = false;
+let lastIdle = 0;
 
 async function idleTick(): Promise<void> {
 	if (idleBusy) return;
@@ -67,16 +90,21 @@ async function idleTick(): Promise<void> {
 	try {
 		const globals = await getGlobals();
 		const idle = idleMs();
+		// Any drop in idle time means there was input since the last tick, however long ago.
+		const resumed = idle < lastIdle || idle < RESUME_IDLE_MS;
+		lastIdle = idle;
 		if (!idleHeld.length) {
 			if (!globals.idleEnabled || idle < (globals.idleMinutes ?? DEFAULT_IDLE_MINUTES) * 60_000) return;
 			const lit = GROUPS.filter((g) => !(g === "case" ? globals.caseOff : globals.peripheralsOff));
 			if (!lit.length) return;
 			idleHeld = lit;
+				await setGlobals({ idleHeld });
 			await setGroups(lit, true);
-		} else if (idle < RESUME_IDLE_MS || !globals.idleEnabled) {
+		} else if (resumed || !globals.idleEnabled) {
 			// Anything the user switched off by hand while away stays off.
 			const back = idleHeld.filter((g) => !(g === "case" ? globals.caseOff : globals.peripheralsOff));
 			idleHeld = [];
+				await setGlobals({ idleHeld });
 			if (back.length) await setGroups(back, false);
 		}
 	} catch (e) {
@@ -86,7 +114,7 @@ async function idleTick(): Promise<void> {
 	}
 }
 
-setInterval(() => void idleTick(), IDLE_POLL_MS);
+setInterval(() => void serialized(idleTick), IDLE_POLL_MS);
 
 async function refreshKeys(): Promise<void> {
 	const { caseOff, peripheralsOff, idleEnabled } = await getGlobals();
@@ -103,16 +131,18 @@ abstract class Toggle extends SingletonAction<Settings> {
 		await refreshKeys();
 	}
 
-	override async onKeyDown(ev: KeyDownEvent<Settings>): Promise<void> {
-		const globals = await getGlobals();
-		const { groups, off } = this.press(globals);
-		await setGlobals({ auraSettings: ev.payload.settings });
-		await setGroups(groups, off);
-		await setGlobals({
-			caseOff: groups.includes("case") ? off : globals.caseOff,
-			peripheralsOff: groups.includes("peripherals") ? off : globals.peripheralsOff,
+	override onKeyDown(ev: KeyDownEvent<Settings>): Promise<void> {
+		return serialized(async () => {
+			const globals = await getGlobals();
+			const { groups, off } = this.press(globals);
+			await setGlobals({ auraSettings: ev.payload.settings });
+			await setGroups(groups, off);
+			await setGlobals({
+				caseOff: groups.includes("case") ? off : globals.caseOff,
+				peripheralsOff: groups.includes("peripherals") ? off : globals.peripheralsOff,
+			});
+			await refreshKeys();
 		});
-		await refreshKeys();
 	}
 }
 
@@ -141,9 +171,11 @@ class IdleToggle extends SingletonAction<IdleSettings> {
 		await this.saveMinutes(ev.payload.settings);
 	}
 
-	override async onKeyDown(_ev: KeyDownEvent<IdleSettings>): Promise<void> {
-		await setGlobals({ idleEnabled: !(await getGlobals()).idleEnabled });
-		await refreshKeys();
+	override onKeyDown(_ev: KeyDownEvent<IdleSettings>): Promise<void> {
+		return serialized(async () => {
+			await setGlobals({ idleEnabled: !(await getGlobals()).idleEnabled });
+			await refreshKeys();
+		});
 	}
 
 	private async saveMinutes(settings: IdleSettings): Promise<void> {

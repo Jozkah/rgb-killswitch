@@ -54,9 +54,14 @@ export class Icue {
 		this.getPositions = this.lib.func("int CorsairGetLedPositions(const char *id, int max, _Out_ CorsairLedPosition *p, _Out_ int *n)");
 		this.setColors = this.lib.func("int CorsairSetLedColors(const char *id, int n, const CorsairLedColor *c)");
 		this.callback = koffi.register((_ctx: unknown, data: unknown) => {
-			const state = (koffi.decode(data, SessionState) as { state: number }).state;
-			this.log(`iCUE session state ${state}`);
-			if (state === CSS_CONNECTED) setImmediate(() => this.onConnected());
+			// An exception thrown inside a native callback kills the whole process.
+			try {
+				const state = (koffi.decode(data, SessionState) as { state: number }).state;
+				this.log(`iCUE session state ${state}`);
+				if (state === CSS_CONNECTED) setImmediate(() => this.onConnected());
+			} catch (e) {
+				this.log(`iCUE callback error ${String(e)}`);
+			}
 		}, koffi.pointer(Handler));
 		this.open();
 	}
@@ -99,7 +104,10 @@ export class Icue {
 			// Synchronous disconnect deadlocks: the SDK fires a state callback that needs this thread.
 			this.disconnect.async((err: unknown) => {
 				if (err) this.log(`CorsairDisconnect error ${String(err)}`);
+				// Finishing after the timeout means this disconnect just tore down the session the timeout opened.
+				const late = settled;
 				finish();
+				if (late) this.open();
 			});
 		});
 	}

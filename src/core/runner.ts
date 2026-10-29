@@ -17,6 +17,7 @@ class Device {
 	private readonly worker: Worker;
 	private readonly pending = new Map<number, (reply: Reply) => void>();
 	private nextId = 0;
+	private dead = false;
 
 	constructor(
 		readonly name: Backend,
@@ -31,16 +32,23 @@ class Device {
 			this.pending.get(reply.id)?.(reply);
 			this.pending.delete(reply.id);
 		});
-		this.worker.on("error", (e) => {
-			this.log(`${name} worker crashed: ${String(e)}`);
+		// A dead worker never answers, so anyone waiting on it (a key press, the idle timer) would hang forever.
+		const died = (): void => {
+			this.dead = true;
 			for (const done of this.pending.values()) done({ id: -1, logs: [] });
 			this.pending.clear();
+		};
+		this.worker.on("error", (e) => {
+			this.log(`${name} worker crashed: ${String(e)}`);
+			died();
 		});
+		this.worker.on("exit", died);
 	}
 
 	send(command: Command): Promise<Reply> {
 		const id = this.nextId++;
 		return new Promise((resolve) => {
+			if (this.dead) return resolve({ id, logs: [] });
 			this.pending.set(id, resolve);
 			this.worker.postMessage({ ...command, id });
 		});

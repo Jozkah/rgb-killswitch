@@ -10,8 +10,7 @@
 	"CategoryIcon": "imgs/plugin",
 	"CodePath": "bin/plugin.js",
 	"Nodejs": {
-		"Version": "20",
-		"Debug": "enabled"
+		"Version": "20"
 	},
 	"OS": [
 		{
