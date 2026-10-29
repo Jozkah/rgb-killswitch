@@ -68,7 +68,7 @@ Some of this hardware cannot report what it was showing, so "on" cannot always r
 
 ### The background process
 
-iCUE only keeps lighting changes while a program stays connected. So `rgb off` leaves a tiny background process running that holds the Corsair session; `rgb on` stops it. If iCUE restarts while your lights are off, it re-applies the blackout.
+iCUE only keeps lighting changes while a program stays connected. So `rgb off` leaves a tiny background process running that holds the Corsair session; `rgb on` stops it. If iCUE restarts while your lights are off, it re-applies the blackout. The Commander CORE (pump and fan lighting) is not reachable through iCUE, so it is held black directly over USB, refreshed every second.
 
 ## Stream Deck plugin
 
