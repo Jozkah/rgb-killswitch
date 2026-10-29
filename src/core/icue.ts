@@ -64,8 +64,9 @@ export class Icue {
 	/** Paints the group's LEDs black and keeps them black until release(). Re-applies after iCUE restarts. */
 	blackout(group: Group): void {
 		this.blackedOut.add(group);
-		if (group === "case") this.core.start();
 		this.paintBlack();
+		// After the SDK paint, so the slower USB setup never delays it.
+		if (group === "case") setImmediate(() => this.core.start());
 	}
 
 	/**

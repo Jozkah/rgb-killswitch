@@ -9,7 +9,6 @@ const USAGE_PAGE = 0xff42;
 const PACKET_SIZE = 65;
 const LED_COUNT = 233; // pump plus six 34-LED fan slots
 const REFRESH_MS = 1000;
-const READ_TIMEOUT_MS = 20;
 
 export function commanderCorePresent(): boolean {
 	return HID.devices().some((d) => d.vendorId === VENDOR && d.productId === PRODUCT && d.usagePage === USAGE_PAGE);
@@ -28,7 +27,6 @@ export class CommanderCore {
 		if (!info?.path) return;
 		try {
 			this.dev = new HID.HID(info.path);
-			this.command(0x02, 0x13, []);
 			// Fan setup first, then software control; without both the CORE ignores color data.
 			this.writeData([0x1e, 0], [0x0d, 0], [0x07, 0x01, 0x08, ...Array.from({ length: 6 }, () => [0x01, 0x06]).flat()]);
 			this.command(0x01, 0x03, [0x00, 0x02]);
@@ -67,8 +65,8 @@ export class CommanderCore {
 		buf[2] = a;
 		buf[3] = b;
 		data.forEach((v, i) => (buf[4 + i] = v));
+		// Replies are not needed, and waiting for them is what made the first paint take 400 ms.
 		this.dev?.write(buf);
-		this.dev?.readTimeout(READ_TIMEOUT_MS);
 	}
 
 	private writeData(endpoint: number[], type: number[], data: number[]): void {
