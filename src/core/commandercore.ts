@@ -20,14 +20,16 @@ export class CoreDriver {
 	private dev: HID.HID | undefined;
 	private timer: NodeJS.Timeout | undefined;
 
+	// Looking the device up takes a quarter of a second, so it is done once, ahead of time.
+	private readonly path = HID.devices().find((d) => d.vendorId === VENDOR && d.productId === PRODUCT && d.usagePage === USAGE_PAGE && d.usage === 1)?.path;
+
 	constructor(private readonly log: Log) {}
 
 	start(): void {
 		if (this.timer) return;
-		const info = HID.devices().find((d) => d.vendorId === VENDOR && d.productId === PRODUCT && d.usagePage === USAGE_PAGE && d.usage === 1);
-		if (!info?.path) return;
+		if (!this.path) return;
 		try {
-			this.dev = new HID.HID(info.path);
+			this.dev = new HID.HID(this.path);
 			// Fan setup first, then software control; without both the CORE ignores color data.
 			this.writeData([0x1e, 0], [0x0d, 0], [0x07, 0x01, 0x08, ...Array.from({ length: 6 }, () => [0x01, 0x06]).flat()]);
 			this.command(0x01, 0x03, [0x00, 0x02]);
