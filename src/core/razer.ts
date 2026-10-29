@@ -167,6 +167,9 @@ function run(zones: RazerZone[], log: Log, fn: (devices: Open[], rounds: number)
 }
 
 const SETTLE_MS = 60;
+// Anything below this is a keyboard caught mid-fade, not a brightness anyone picked.
+const MIN_SAVED_LEVEL = 26;
+const usable = (level: number | undefined): level is number => level !== undefined && level >= MIN_SAVED_LEVEL;
 
 /**
  * `saved` receives each zone's brightness so razerOn can restore it, even from another process.
@@ -184,17 +187,20 @@ export function razerOff(zones: RazerZone[], saved: Record<string, number>, log:
 			}
 			return levels;
 		};
-		const first = readAll();
-		pause(SETTLE_MS);
-		const second = readAll();
-		for (const [key, level] of second) if (level > 0 && first.get(key) === level) saved[key] = level;
+		// Known levels skip the reads, which are what made turning off slow.
+		if (!devices.every((d) => d.zones.every((z) => usable(saved[zoneKey(z)])))) {
+			const first = readAll();
+			pause(SETTLE_MS);
+			const second = readAll();
+			for (const [key, level] of second) if (usable(level) && first.get(key) === level) saved[key] = level;
+		}
 		for (let i = 0; i < rounds; i++) roundTrip(devices, i, (z) => report(z, z.set, z.led, 0));
 	});
 }
 
 export function razerOn(zones: RazerZone[], saved: Record<string, number>, log: Log): void {
 	run(zones, log, (devices, rounds) => {
-		for (let i = 0; i < rounds; i++) roundTrip(devices, i, (z) => report(z, z.set, z.led, saved[zoneKey(z)] ?? FALLBACK_BRIGHTNESS));
+		for (let i = 0; i < rounds; i++) roundTrip(devices, i, (z) => report(z, z.set, z.led, (usable(saved[zoneKey(z)]) ? saved[zoneKey(z)] : FALLBACK_BRIGHTNESS)));
 	});
 }
 

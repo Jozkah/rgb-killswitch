@@ -43,6 +43,8 @@ export class CommanderCore {
 		if (this.timer) clearInterval(this.timer);
 		this.timer = undefined;
 		try {
+			// Back to the hub's own lighting; iCUE's SDK has no way to hand it back.
+			if (this.dev) this.command(0x01, 0x03, [0x00, 0x01]);
 			this.dev?.close();
 		} catch {
 			// already closed
