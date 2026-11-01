@@ -25,7 +25,7 @@ const log = (m: string): void => {
 const dll = findIcueDll([path.join(__dirname, "..", "lib")]);
 let icue: Icue | undefined;
 try {
-	icue = dll ? new Icue(dll, path.join(__dirname, "worker.js"), log) : undefined;
+	icue = dll ? new Icue(dll, log) : undefined;
 } catch (e) {
 	logger.error(`iCUE unavailable, Corsair devices will be skipped: ${String(e)}`);
 }
@@ -53,9 +53,8 @@ const getGlobals = (): Promise<Globals> => streamDeck.settings.getGlobalSettings
 const setGlobals = (patch: Globals): Promise<void> => getGlobals().then((g) => streamDeck.settings.setGlobalSettings<Globals>({ ...g, ...patch }));
 
 // A restarted plugin has an empty iCUE session, so Corsair lighting would come back while the keys still say "off".
-// The Commander CORE is left alone here: at boot iCUE is still configuring it, and writing to it then leaves the fans red and fast.
 void getGlobals().then((g) => {
-	if (g.caseOff) icue?.blackout("case", false);
+	if (g.caseOff) icue?.blackout("case");
 	if (g.peripheralsOff) icue?.blackout("peripherals");
 	idleHeld = g.idleHeld ?? [];
 });

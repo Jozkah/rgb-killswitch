@@ -62,8 +62,7 @@ Handy shortcuts:
 
 Some of this hardware cannot report what it was showing, so "on" cannot always restore your exact effect:
 
-- **iCUE** devices (RAM and so on) go back to your iCUE profile exactly.
-- **Commander CORE** (pump and fans) is switched over USB because iCUE's SDK cannot reach its lights. It returns to the hub's own built-in lighting, not necessarily your iCUE profile.
+- **iCUE** devices (RAM, pump, fans and so on) go back to your iCUE profile exactly.
 - **Razer** devices go back to their previous brightness (and keep whatever effect they had). A brightness below 10% is treated as a glitch and restored to full.
 - **Motherboard** lighting comes back as a rainbow, or a fixed color: `rgb on --color ff5500`.
 - **MSI graphics cards** come back as Rainbow Wave.

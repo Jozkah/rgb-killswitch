@@ -44,7 +44,7 @@ async function holder(): Promise<void> {
 		if (debugFile) fs.appendFileSync(debugFile, `${new Date().toISOString()} ${m}
 `);
 	};
-	const icue = new Icue(dll, WORKER, note);
+	const icue = new Icue(dll, note);
 	note(`holder started, pid ${process.pid}`);
 	const applied: Record<Group, boolean> = { case: false, peripherals: false };
 	// On a timer, not in the loop: releasing iCUE can block the loop for seconds and the CLI would think the holder died.

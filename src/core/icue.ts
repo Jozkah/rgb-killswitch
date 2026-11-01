@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import koffi from "koffi";
-import { CommanderCore } from "./commandercore.js";
 import type { Group, Log } from "./types.js";
 
 const CSS_CONNECTED = 6;
@@ -42,11 +41,9 @@ export class Icue {
 	private readonly blackedOut = new Set<Group>();
 	private releasing: Promise<void> = Promise.resolve();
 	private devices: BlackDevice[] = [];
-	private readonly core: CommanderCore;
 
 	/** Connects right away and stays connected, so the blackout can paint instantly instead of waiting for the handshake. */
-	constructor(dllPath: string, workerPath: string, private readonly log: Log) {
-		this.core = new CommanderCore(workerPath, log);
+	constructor(dllPath: string, private readonly log: Log) {
 		this.lib = koffi.load(dllPath);
 		this.connect = this.lib.func("int CorsairConnect(CorsairSessionStateChangedHandler *cb, void *ctx)");
 		this.disconnect = this.lib.func("int CorsairDisconnect()");
@@ -67,10 +64,9 @@ export class Icue {
 	}
 
 	/** Paints the group's LEDs black and keeps them black until release(). Re-applies after iCUE restarts. */
-	blackout(group: Group, includeCore = true): void {
+	blackout(group: Group): void {
 		this.blackedOut.add(group);
 		this.paintBlack();
-		if (group === "case" && includeCore) this.core.start();
 	}
 
 	/**
@@ -79,7 +75,6 @@ export class Icue {
 	 */
 	release(...groups: Group[]): Promise<void> {
 		for (const g of groups) this.blackedOut.delete(g);
-		if (groups.includes("case")) this.core.stop();
 		// One disconnect at a time: a second one issued while the first is in flight never completes.
 		this.releasing = this.releasing.then(() => this.reconnect());
 		return this.releasing;
