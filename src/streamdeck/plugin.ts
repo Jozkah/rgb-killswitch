@@ -53,8 +53,9 @@ const getGlobals = (): Promise<Globals> => streamDeck.settings.getGlobalSettings
 const setGlobals = (patch: Globals): Promise<void> => getGlobals().then((g) => streamDeck.settings.setGlobalSettings<Globals>({ ...g, ...patch }));
 
 // A restarted plugin has an empty iCUE session, so Corsair lighting would come back while the keys still say "off".
+// The Commander CORE is left alone here: at boot iCUE is still configuring it, and writing to it then leaves the fans red and fast.
 void getGlobals().then((g) => {
-	if (g.caseOff) icue?.blackout("case");
+	if (g.caseOff) icue?.blackout("case", false);
 	if (g.peripheralsOff) icue?.blackout("peripherals");
 	idleHeld = g.idleHeld ?? [];
 });

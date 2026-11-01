@@ -67,10 +67,10 @@ export class Icue {
 	}
 
 	/** Paints the group's LEDs black and keeps them black until release(). Re-applies after iCUE restarts. */
-	blackout(group: Group): void {
+	blackout(group: Group, includeCore = true): void {
 		this.blackedOut.add(group);
 		this.paintBlack();
-		if (group === "case") this.core.start();
+		if (group === "case" && includeCore) this.core.start();
 	}
 
 	/**
