@@ -85,6 +85,29 @@ Restart Stream Deck and find **RGB Kill Switch** in the action list. Three keys:
 
 The keys show the real state and share it with each other. Stream Deck 7.1 or newer is required.
 
+## Troubleshooting
+
+### Corsair fans or AIO stuck red, fans running fast, "off" has no effect
+
+Versions of this tool from 29 October to 1 November 2026 (before commit a679d49) wrote to the Corsair Commander CORE directly over USB. That can break iCUE's connection to the hub. Signs: the pump and fans are stuck red or at full speed, and iCUE's log (`%LOCALAPPDATA%\Corsair\Logs\CUE5\*.log`) repeats `Get coolers actual RPMs failed. Device Commander CORE`.
+
+The current version no longer does this, but a hub that is already confused stays that way until it is reset. Either:
+
+1. Open PowerShell **as administrator** and restart the device. Find your hub's serial number with the first command, then use it in the second:
+
+   ```powershell
+   Get-PnpDevice -PresentOnly | Where-Object InstanceId -like 'USB\VID_1B1C&PID_0C32*'
+   pnputil /restart-device "USB\VID_1B1C&PID_0C32\<serial>"
+   ```
+
+2. Or shut the PC down completely, switch the power supply off for about 10 seconds, and start it again.
+
+Then update to the latest version and restart iCUE.
+
+### A Corsair device ignores "off"
+
+Turn on **Settings, Enable SDK** in iCUE, make sure iCUE is running, and run `rgb status`. If a device is not listed there, this tool cannot see it. Please open an issue with that output.
+
 ## Safety
 
 - Probing only sends read and query commands. Nothing is written to a device until it has been identified.
