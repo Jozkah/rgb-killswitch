@@ -24,12 +24,24 @@ const log = (m: string): void => {
 // Stream Deck runs the plugin from its own folder (bin/plugin.js); the DLL sits in lib/.
 const dll = findIcueDll([path.join(__dirname, "..", "lib")]);
 let icue: Icue | undefined;
-try {
-	icue = dll ? new Icue(dll, log) : undefined;
-} catch (e) {
-	logger.error(`iCUE unavailable, Corsair devices will be skipped: ${String(e)}`);
+let icueFailed = false;
+/**
+ * Connects to iCUE on first use. Connecting while iCUE is still starting up (at boot) is suspected of leaving its pump and
+ * fan lighting stuck on the hub's default red, so the plugin waits a while after it starts before it connects on its own.
+ */
+function getIcue(): Icue | undefined {
+	if (!icue && dll && !icueFailed) {
+		try {
+			icue = new Icue(dll, log);
+		} catch (e) {
+			icueFailed = true;
+			logger.error(`iCUE unavailable, Corsair devices will be skipped: ${String(e)}`);
+		}
+	}
+	return icue;
 }
 if (!dll) log("iCUE SDK not found; Corsair devices will be skipped");
+const ICUE_WARMUP_MS = 120_000;
 
 /** Detects the hardware once, in the background, and keeps one worker thread per device family warm. */
 const runner = Runner.create(path.join(__dirname, "worker.js"), log);
@@ -54,9 +66,12 @@ const setGlobals = (patch: Globals): Promise<void> => getGlobals().then((g) => s
 
 // A restarted plugin has an empty iCUE session, so Corsair lighting would come back while the keys still say "off".
 void getGlobals().then((g) => {
-	if (g.caseOff) icue?.blackout("case");
-	if (g.peripheralsOff) icue?.blackout("peripherals");
 	idleHeld = g.idleHeld ?? [];
+	setTimeout(() => {
+		if (g.caseOff) getIcue()?.blackout("case");
+		if (g.peripheralsOff) getIcue()?.blackout("peripherals");
+		getIcue();
+	}, ICUE_WARMUP_MS);
 });
 
 async function setGroups(groups: Group[], off: boolean): Promise<void> {
@@ -65,10 +80,10 @@ async function setGroups(groups: Group[], off: boolean): Promise<void> {
 		const r = await runner;
 		if (off) {
 			const done = r.off(groups, razerSaved ?? {});
-			for (const g of groups) icue?.blackout(g);
+			for (const g of groups) getIcue()?.blackout(g);
 			await setGlobals({ razerSaved: await done });
 		} else {
-			await Promise.all([r.on(groups, onEffect(auraSettings ?? {}), razerSaved ?? {}), icue?.release(...groups)]);
+			await Promise.all([r.on(groups, onEffect(auraSettings ?? {}), razerSaved ?? {}), getIcue()?.release(...groups)]);
 		}
 	} catch (e) {
 		logger.error(`toggle failed: ${String(e)}`);
