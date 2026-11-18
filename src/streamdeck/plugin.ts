@@ -75,6 +75,7 @@ void getGlobals().then((g) => {
 });
 
 async function setGroups(groups: Group[], off: boolean): Promise<void> {
+	log(`switching ${groups.join(" + ")} ${off ? "off" : "on"}`);
 	try {
 		const { auraSettings, razerSaved } = await getGlobals();
 		const r = await runner;

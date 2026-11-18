@@ -66,6 +66,7 @@ class Device {
 export class Runner {
 	private constructor(
 		private readonly devices: Device[],
+		private readonly log: Log,
 		readonly detected: Detected,
 		readonly razer: RazerState,
 	) {}
@@ -80,7 +81,24 @@ export class Runner {
 			detected[d.name] = Boolean(replies[i].detected);
 			if (d.name === "razer" && replies[i].razer) razer = replies[i].razer!;
 		});
-		return new Runner(devices, detected, razer);
+		return new Runner(devices, log, detected, razer);
+	}
+
+	/** Logs how long each family took, so a slow or silent one is visible in the log. */
+	private timed(action: string, devices: Device[], run: (d: Device) => Promise<Reply>): Promise<Reply[]> {
+		const start = performance.now();
+		const times: string[] = [];
+		return Promise.all(
+			devices.map((d) =>
+				run(d).then((r) => {
+					times.push(`${d.name}=${Math.round(performance.now() - start)}ms${r.id === -1 ? " (no answer)" : ""}`);
+					return r;
+				}),
+			),
+		).then((replies) => {
+			this.log(`${action}: ${times.join(" ") || "nothing detected"}`);
+			return replies;
+		});
 	}
 
 	private active(groups: Group[]): Device[] {
@@ -89,12 +107,12 @@ export class Runner {
 
 	/** Returns the Razer brightness levels to keep for `on`. */
 	async off(groups: Group[], razerSaved: Record<string, number> = {}): Promise<Record<string, number>> {
-		const replies = await Promise.all(this.active(groups).map((d) => d.send({ action: "off", razer: d.name === "razer" ? { zones: this.razer.zones, saved: razerSaved } : undefined })));
+		const replies = await this.timed("off", this.active(groups), (d) => d.send({ action: "off", razer: d.name === "razer" ? { zones: this.razer.zones, saved: razerSaved } : undefined }));
 		return replies.find((r) => r.razer)?.razer?.saved ?? razerSaved;
 	}
 
 	async on(groups: Group[], aura: AuraOn, razerSaved: Record<string, number> = {}): Promise<void> {
-		await Promise.all(this.active(groups).map((d) => d.send({ action: "on", aura, razer: d.name === "razer" ? { zones: this.razer.zones, saved: razerSaved } : undefined })));
+		await this.timed("on", this.active(groups), (d) => d.send({ action: "on", aura, razer: d.name === "razer" ? { zones: this.razer.zones, saved: razerSaved } : undefined }));
 	}
 
 	async stop(): Promise<void> {
